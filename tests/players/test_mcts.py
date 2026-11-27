@@ -366,3 +366,66 @@ def test_backpropagate_credit_assignement(new_mcts: MCTS, new_game: GameState):
     assert child2.visits == 3 and child2.wins == 0
     assert child1.visits == 4 and child1.wins == 1
     assert root.visits == 5 and root.wins == 0
+
+
+def test_backpropagate_draw_credits_both_players(new_game: GameState):
+    """A draw should credit draw_value to every non-root node along the path."""
+    mcts = MCTS(simulations=10, draw_value=0.5)
+    pieces = new_game.get_remaining_pieces()
+
+    root = MCTSNode(parent=None, move=None, player_who_moved=None, unexplored_moves=[])
+    child1 = MCTSNode(
+        parent=root,
+        move=pieces[0],
+        player_who_moved=Player.PLAYER_1,
+        unexplored_moves=[],
+    )
+    child2 = MCTSNode(
+        parent=child1,
+        move=(0, 0),
+        player_who_moved=Player.PLAYER_2,
+        unexplored_moves=[],
+    )
+
+    mcts._backpropagate(child2, GameResult.DRAW)
+
+    assert child2.visits == 1 and child2.wins == pytest.approx(0.5)
+    assert child1.visits == 1 and child1.wins == pytest.approx(0.5)
+    assert root.visits == 1 and root.wins == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error_match"),
+    [
+        ({"simulations": 0}, "simulations must be at least 1"),
+        ({"simulations": -10}, "simulations must be at least 1"),
+        ({"exploration_weight": -0.5}, "exploration_weight must be non-negative"),
+        ({"draw_value": -0.1}, "draw_value must be in"),
+        ({"draw_value": 1.5}, "draw_value must be in"),
+    ],
+)
+def test_mcts_invalid_init_params_raise(kwargs: dict[str, float | int], error_match: str):
+    """Invalid MCTS hyperparameters must raise ValueError."""
+    with pytest.raises(ValueError, match=error_match):
+        MCTS(**kwargs)  # type: ignore[arg-type]
+
+
+def test_select_raises_if_child_has_none_move(new_game: GameState, new_mcts: MCTS):
+    """_select must raise ValueError if a selected child node has move=None."""
+    root = MCTSNode(parent=None, move=None, player_who_moved=None, unexplored_moves=[])
+    root.visits = 2
+    bad_child = MCTSNode(
+        parent=root, move=None, player_who_moved=Player.PLAYER_1, unexplored_moves=[]
+    )
+    bad_child.visits = 1
+    root.children = [bad_child]
+
+    with pytest.raises(ValueError, match="cannot have a None move"):
+        new_mcts._select(root, new_game)
+
+
+def test_mcts_loop_no_legal_moves_raises(new_game: GameState, new_mcts: MCTS):
+    """Running MCTS on a finished game with no legal moves must raise ValueError."""
+    new_game.result = GameResult.DRAW
+    with pytest.raises(ValueError, match="No legal moves available"):
+        new_mcts.choose_piece(new_game)

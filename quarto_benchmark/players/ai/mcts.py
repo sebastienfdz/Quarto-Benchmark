@@ -1,12 +1,10 @@
-import copy
 import math
 import random
 
 from quarto_benchmark.game.piece import Piece
 from quarto_benchmark.game.state import GameState, MoveType
+from quarto_benchmark.game.types import GameResult, Player
 from quarto_benchmark.players.base import BaseModel
-
-from ...game.types import GameResult, Player
 
 
 class MCTSNode:
@@ -34,7 +32,7 @@ class MCTSNode:
         self.unexplored_moves: list[MoveType] = unexplored_moves
 
         self.visits: int = 0
-        self.wins: int = 0
+        self.wins: float = 0.0
 
     def is_fully_expanded(self) -> bool:
         """
@@ -89,25 +87,36 @@ class MCTS(BaseModel):
     3. Simulation
     4. Backpropagation
 
+    :param simulations: Number of simulations per move (must be >= 1).
+    :param exploration_weight: Exploration factor for UCB1 (must be >= 0).
     :param name: AI identifier.
-    :param simulations: Number of simulations per move.
-    :param exploration_weight: Exploration factor for UCB1.
+    :param draw_value: Reward credited to each player on a draw (in [0.0, 1.0]).
     """
 
     def __init__(
-        self, simulations: int = 1_000, exploration_weight: float = 1.414, name: str = "MCTS"
+        self,
+        simulations: int = 1_000,
+        exploration_weight: float = 1.414,
+        name: str = "MCTS",
+        draw_value: float = 0.5,
     ) -> None:
+        if simulations < 1:
+            raise ValueError(f"simulations must be at least 1, got {simulations}.")
+        if exploration_weight < 0:
+            raise ValueError(f"exploration_weight must be non-negative, got {exploration_weight}.")
+        if not 0.0 <= draw_value <= 1.0:
+            raise ValueError(f"draw_value must be in [0.0, 1.0], got {draw_value}.")
         super().__init__(name)
         self.simulations: int = simulations
         self.exploration_weight: float = exploration_weight
-        self.root: MCTSNode | None = None
+        self.draw_value: float = draw_value
 
     def choose_piece(self, state: GameState) -> Piece:
         """
-        Select a piece to give to the opponent.
+        Select a piece to give to the opponent using MCTS.
 
         :param state: Current game state.
-        :returns: A randomly selected available piece.
+        :returns: The available piece selected by MCTS.
         """
         best_node = self._mcts_loop(state)
         piece = best_node.move
@@ -134,18 +143,22 @@ class MCTS(BaseModel):
         Main loop of the MCTS algorithm.
 
         :param game: Game state of the root node.
+        :raises ValueError: If no legal moves are available.
         """
-        i = 0
-        self.root = MCTSNode(
+        legal_moves = game.get_legal_moves()
+        if not legal_moves:
+            raise ValueError("No legal moves available from the given game state.")
+
+        root = MCTSNode(
             parent=None,
             move=None,
             player_who_moved=None,
-            unexplored_moves=game.get_legal_moves(),
+            unexplored_moves=legal_moves,
         )
 
-        while i < self.simulations:
-            current_game = copy.deepcopy(game)
-            node = self.root
+        for _ in range(self.simulations):
+            current_game = game.clone()
+            node = root
 
             node, current_game = self._select(node, current_game)
             if current_game.result is None:
@@ -154,9 +167,8 @@ class MCTS(BaseModel):
             else:
                 result = current_game.result
             self._backpropagate(node, result)
-            i += 1
 
-        return self.root.best_child_play()
+        return root.best_child_play()
 
     def _select(self, node: MCTSNode, game: GameState) -> tuple[MCTSNode, GameState]:
         """
@@ -183,7 +195,12 @@ class MCTS(BaseModel):
         :returns: The newly created child node and the newly updated game state.
         """
         child_player: Player = game.current_player
-        child_move: MoveType = random.choice(node.unexplored_moves)
+        idx = random.randrange(len(node.unexplored_moves))
+        node.unexplored_moves[idx], node.unexplored_moves[-1] = (
+            node.unexplored_moves[-1],
+            node.unexplored_moves[idx],
+        )
+        child_move: MoveType = node.unexplored_moves.pop()
         game.apply_move(child_move)
 
         new_node = MCTSNode(
@@ -193,7 +210,6 @@ class MCTS(BaseModel):
             unexplored_moves=game.get_legal_moves(),
         )
         node.children.append(new_node)
-        node.unexplored_moves.remove(child_move)
 
         return new_node, game
 
@@ -217,15 +233,13 @@ class MCTS(BaseModel):
         :param node: Node reached at the end of selection/expansion.
         :param result: Result of the simulated game.
         """
-        current_node = node
+        current_node: MCTSNode | None = node
 
-        while True:
+        while current_node is not None:
             current_node.visits += 1
-            if (
-                current_node.player_who_moved is not None
-                and current_node.player_who_moved.value == result.value
-            ):
-                current_node.wins += 1
-            if current_node.parent is None:
-                break
+            if current_node.player_who_moved is not None:
+                if result == GameResult.DRAW:
+                    current_node.wins += self.draw_value
+                elif current_node.player_who_moved.value == result.value:
+                    current_node.wins += 1.0
             current_node = current_node.parent
