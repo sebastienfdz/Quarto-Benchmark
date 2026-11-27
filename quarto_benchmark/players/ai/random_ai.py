@@ -1,7 +1,7 @@
-import copy
 import random
 
 from quarto_benchmark.game.board import Board
+from quarto_benchmark.game.exceptions import InvalidSquareError
 from quarto_benchmark.game.piece import Piece
 from quarto_benchmark.game.state import GameState
 from quarto_benchmark.players.base import BaseModel
@@ -28,19 +28,17 @@ class RandomAI(BaseModel):
         If possible choose a winning move, if not choose a random position.
         """
         positions = state.board.get_available_positions()
-        board_copy = copy.deepcopy(state.board)
 
         for x, y in positions:
-            if self._is_winning_move(board_copy, x, y, piece):
+            if self._is_winning_move(state.board, x, y, piece):
                 return (x, y)
         return random.choice(positions)
 
     def _is_winning_move(self, board: Board, x: int, y: int, piece: Piece) -> bool:
-        """Temporarily play a move, check victory, and undo it."""
-        if board.game_board[x, y] is not None:
+        """Simulate placing a piece on a lightweight board clone and check for victory."""
+        board_copy = board.clone()
+        try:
+            board_copy.place_piece(x, y, piece)
+        except InvalidSquareError:
             return False
-
-        board.game_board[x, y] = piece
-        is_win = board.check_victory()
-        board.game_board[x, y] = None
-        return is_win
+        return board_copy.check_victory()
