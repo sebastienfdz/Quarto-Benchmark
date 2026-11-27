@@ -1,10 +1,17 @@
 [project]
 name = "quarto-benchmark"
 version = "1.0.0"
-description = "Quarto board game engine with AI implementations"
+description = "Quarto board game engine with AI implementations and Elo benchmarking"
 readme = "README.md"
+license = "MIT"
+authors = [{ name = "Sébastien" }]
 requires-python = ">=3.12"
 dependencies = ["numpy>=2.3.2", "tqdm>=4.67.2"]
+
+[project.urls]
+Homepage = "https://github.com/sebastienfdz/Quarto-Benchmark"
+Repository = "https://github.com/sebastienfdz/Quarto-Benchmark"
+Issues = "https://github.com/sebastienfdz/Quarto-Benchmark/issues"
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest", "pytest-cov"]
@@ -29,9 +36,12 @@ ignore = []
 [tool.mypy]
 python_version = "3.12"
 strict = true
-ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "tqdm.*"
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # Relax type annotation requirements for test functions
