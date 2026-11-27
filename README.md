@@ -6,6 +6,7 @@
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type Checked: Mypy](https://img.shields.io/badge/type%20checker-mypy%20(strict)-blue.svg)](https://mypy-lang.org/)
 [![Package Manager: uv](https://img.shields.io/badge/package%20manager-uv-DE5FE9.svg)](https://github.com/astral-sh/uv)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A Python implementation of the abstract strategy board game **Quarto**. This project features a robust game engine, multiple AI agent paradigms (Heuristic Random, Monte Carlo Tree Search, and Minimax with Alpha-Beta Pruning), and a parallel tournament framework with an order-invariant, convergent Elo rating system.
 
@@ -156,12 +157,27 @@ docker run -it --rm -v ./benchmarks:/app/benchmarks quarto-benchmark -m scripts.
 
 ---
 
+## Architecture Decisions (ADRs)
+
+Key design trade-offs are documented as Architecture Decision Records under `docs/decisions/`:
+
+- **[ADR-001 — Two-Phase State Machine](docs/decisions/001-two-phase-state-machine.md)**: Enforcing Quarto's split `SELECTION` / `PLACEMENT` turn lifecycle at the engine boundary to prevent invalid states and cap per-ply branching at 16.
+- **[ADR-002 — Minimax Architecture](docs/decisions/002-minimax-architecture.md)**: Ply-based search depth, absolute Player 1 evaluation perspective, alive-line heuristic scoring, and evaluator dependency injection.
+- **[ADR-003 — Iterative Batch Elo](docs/decisions/003-iterative-batch-elo.md)**: Eliminating match-order bias and rating explosion via order-invariant Batch Gradient Descent with win-rate normalization.
+
+---
+
 ## Project Structure
 
 ```text
 Quarto-Benchmark/
 ├── benchmarks/             # Benchmark reports and canonical results
 │   └── results.md          # 5,600-game official baseline report
+├── docs/
+│   └── decisions/          # Architecture Decision Records (ADRs)
+│       ├── 001-two-phase-state-machine.md
+│       ├── 002-minimax-architecture.md
+│       └── 003-iterative-batch-elo.md
 ├── quarto_benchmark/
 │   ├── game/               # Core engine (board, piece, state machine, exceptions)
 │   ├── interfaces/         # CLI user interface
@@ -178,10 +194,11 @@ Quarto-Benchmark/
 ├── scripts/
 │   ├── benchmark.py        # Automated benchmark CLI
 │   └── tournament.py       # Interactive tournament CLI
-├── tests/                  # Pytest test suite (100% passing, 93%+ coverage)
+├── tests/                  # Pytest test suite
 ├── main.py                 # Interactive game entrypoint
 ├── Dockerfile              # Container definition
-└── pyproject.toml          # Tooling configuration (Ruff, Mypy, Pytest)
+├── LICENSE                 # MIT License
+└── pyproject.toml          # Project metadata & tooling configuration (Ruff, Mypy, Pytest)
 ```
 
 ---
@@ -191,3 +208,9 @@ Quarto-Benchmark/
 - **`AdvancedEvaluator`**: Enhanced heuristic evaluator accounting for piece pool danger and piece-gifting safety in addition to board threats.
 - **Performance Profiling**: Bottleneck profiling (`cProfile`) for deep Minimax and large MCTS search trees.
 - **MCTS Tree Reuse**: Retain and re-root the search tree across successive turns to maximize simulation efficiency.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
