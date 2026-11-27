@@ -3,7 +3,7 @@ from .exceptions import GameEndedError, InvalidPhaseError, InvalidPieceError
 from .piece import Piece, generate_all_pieces
 from .types import GamePhase, GameResult, Player
 
-MoveType = tuple[int, int] | Piece | None
+MoveType = tuple[int, int] | Piece
 
 
 class GameState:
@@ -38,7 +38,7 @@ class GameState:
             raise InvalidPhaseError("Invalid phase.")
         if self.next_piece is not None:
             raise InvalidPieceError("Next piece was already chosen.")
-        if piece not in self.get_remaining_pieces():
+        if self.remaining_pieces.get(piece.to_bits()) != piece:
             raise InvalidPieceError("Piece already played.")
 
         self.next_piece = piece
@@ -82,9 +82,7 @@ class GameState:
         """
         new_state = GameState.__new__(GameState)
 
-        new_state.board = Board.__new__(Board)
-        new_state.board.game_board = self.board.game_board.copy()
-
+        new_state.board = self.board.clone()
         new_state.remaining_pieces = self.remaining_pieces.copy()
         new_state.current_player = self.current_player
         new_state.phase = self.phase
@@ -94,21 +92,23 @@ class GameState:
         return new_state
 
     def get_legal_moves(self) -> list[MoveType]:
-        """Find every legal moves from a game state position."""
-        moves: list[MoveType] = []
-
+        """Find every legal move from the current game state."""
+        if self.result is not None:
+            return []
         if self.phase == GamePhase.PLACEMENT:
-            moves = list(self.board.get_available_positions())
-        elif self.phase == GamePhase.SELECTION:
-            moves = list(self.get_remaining_pieces())
-        return moves
+            return list(self.board.get_available_positions())
+        return list(self.get_remaining_pieces())
 
     def apply_move(self, move: MoveType) -> None:
         """
         Apply a single move to the given game state.
 
         :param move: Move to apply to the current game state.
+        :raises GameEndedError: If the game is already over.
+        :raises TypeError: If the move type does not match the current game phase.
         """
+        if self.result is not None:
+            raise GameEndedError("The game is already over.")
         if self.phase == GamePhase.PLACEMENT:
             if not isinstance(move, tuple):
                 raise TypeError(f"Expected tuple for placement, got {type(move).__name__}")

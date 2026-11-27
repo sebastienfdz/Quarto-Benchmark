@@ -22,11 +22,11 @@ class MCTSNode:
     def __init__(
         self,
         parent: "MCTSNode | None",
-        move: MoveType,
+        move: MoveType | None,
         player_who_moved: Player | None,
         unexplored_moves: list[MoveType],
     ) -> None:
-        self.move: MoveType = move
+        self.move: MoveType | None = move
         self.player_who_moved: Player | None = player_who_moved
 
         self.parent: MCTSNode | None = parent
@@ -168,6 +168,8 @@ class MCTS(BaseModel):
         """
         while node.is_fully_expanded() and node.children:
             node = node.best_child_selection(self.exploration_weight)
+            if node.move is None:
+                raise ValueError("Selected child node cannot have a None move.")
             game.apply_move(node.move)
 
         return node, game
