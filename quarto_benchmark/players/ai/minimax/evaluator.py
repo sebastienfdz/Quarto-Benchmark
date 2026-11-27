@@ -1,10 +1,11 @@
 import abc
-import math
 from typing import ClassVar
 
 from quarto_benchmark.game.piece import Piece
 from quarto_benchmark.game.state import GameState
 from quarto_benchmark.game.types import GamePhase, GameResult, Player
+
+WIN_SCORE: float = 10_000.0
 
 
 def evaluate_line(line: list[Piece | None]) -> int:
@@ -51,8 +52,8 @@ class BaseEvaluator(abc.ABC):
         must not be aware of who is the maximizing player.
 
         :param state: The current game state to evaluate. Must not be mutated.
-        :returns: A float score in the range (-inf, +inf). Terminal wins return
-                  math.inf or -math.inf.
+        :returns: A finite float score. Terminal wins return +WIN_SCORE or -WIN_SCORE,
+                  allowing search algorithms to weight terminal outcomes by remaining depth.
         """
 
 
@@ -69,9 +70,9 @@ class SimpleEvaluator(BaseEvaluator):
 
     def evaluate(self, state: GameState) -> float:
         if state.result == GameResult.PLAYER_1:
-            return math.inf
+            return WIN_SCORE
         if state.result == GameResult.PLAYER_2:
-            return -math.inf
+            return -WIN_SCORE
         if state.result == GameResult.DRAW:
             return 0.0
 

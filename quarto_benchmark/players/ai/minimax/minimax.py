@@ -1,6 +1,6 @@
 from quarto_benchmark.game.piece import Piece
-from quarto_benchmark.game.state import GameState
-from quarto_benchmark.game.types import Player
+from quarto_benchmark.game.state import GameState, MoveType
+from quarto_benchmark.game.types import GameResult, Player
 from quarto_benchmark.players.ai.minimax.evaluator import BaseEvaluator
 from quarto_benchmark.players.base import BaseModel
 
@@ -22,10 +22,13 @@ class Minimax(BaseModel):
     ) -> None:
         """
         :param evaluator: The heuristic evaluation function.
-        :param depth: The search depth in plies (half-steps).
+        :param depth: The search depth in plies (half-steps). Must be >= 1.
         :param use_alpha_beta: If True, uses Alpha-Beta pruning. If False, uses naive Minimax.
         :param name: The display name of the agent.
+        :raises ValueError: If depth is less than 1.
         """
+        if depth < 1:
+            raise ValueError(f"Search depth must be at least 1, got {depth}.")
         super().__init__(name)
         self.evaluator = evaluator
         self.depth = depth
@@ -40,28 +43,10 @@ class Minimax(BaseModel):
         TODO: remove this piece parameter
         :returns: The (x, y) coordinates for the optimal placement.
         """
-        best_score = float("-inf")
-        best_position = None
-        maximizing_player = state.current_player
-
-        for pos in state.board.get_available_positions():
-            clone = state.clone()
-            clone.place_piece(*pos)
-
-            if self.use_alpha_beta:
-                score = self._minimax_alpha_beta(
-                    clone, self.depth - 1, float("-inf"), float("inf"), maximizing_player
-                )
-            else:
-                score = self._minimax_naive(clone, self.depth - 1, maximizing_player)
-
-            if best_position is None or score > best_score:
-                best_score = score
-                best_position = pos
-
-        if not isinstance(best_position, tuple):
-            raise TypeError(f"Expected tuple, got {type(best_position).__name__}")
-        return best_position
+        best_move = self._search_best_move(state)
+        if not isinstance(best_move, tuple):
+            raise TypeError(f"Expected tuple, got {type(best_move).__name__}")
+        return best_move
 
     def choose_piece(self, state: GameState) -> Piece:
         """
@@ -70,28 +55,44 @@ class Minimax(BaseModel):
         :param state: The current game state.
         :returns: The optimal Piece to give.
         """
+        best_move = self._search_best_move(state)
+        if not isinstance(best_move, Piece):
+            raise TypeError(f"Expected Piece, got {type(best_move).__name__}")
+        return best_move
+
+    def _search_best_move(self, state: GameState) -> MoveType:
+        """
+        Searches the game tree from the root state to find the best legal move.
+
+        Propagates alpha across root siblings when Alpha-Beta pruning is enabled.
+        """
+        legal_moves = state.get_legal_moves()
+        if not legal_moves:
+            raise ValueError("No legal moves available from the given game state.")
+
         best_score = float("-inf")
-        best_piece = None
+        best_move = legal_moves[0]
+        alpha = float("-inf")
+        beta = float("inf")
         maximizing_player = state.current_player
 
-        for piece in state.get_remaining_pieces():
+        for move in legal_moves:
             clone = state.clone()
-            clone.select_piece(piece)
+            clone.apply_move(move)
 
             if self.use_alpha_beta:
                 score = self._minimax_alpha_beta(
-                    clone, self.depth - 1, float("-inf"), float("inf"), maximizing_player
+                    clone, self.depth - 1, alpha, beta, maximizing_player
                 )
             else:
                 score = self._minimax_naive(clone, self.depth - 1, maximizing_player)
 
-            if best_piece is None or score > best_score:
+            if score > best_score:
                 best_score = score
-                best_piece = piece
+                best_move = move
+                alpha = max(alpha, best_score)
 
-        if not isinstance(best_piece, Piece):
-            raise TypeError(f"Expected Piece, got {type(best_piece).__name__}")
-        return best_piece
+        return best_move
 
     def _minimax_naive(self, state: GameState, depth: int, maximizing_player: Player) -> float:
         """
@@ -102,8 +103,8 @@ class Minimax(BaseModel):
         :param maximizing_player: The player whose score we are trying to maximize.
         :returns: The heuristic score of the node from the maximizing_player's perspective.
         """
-        if state.result is not None or depth == 0:
-            return self._evaluate_for_maximizer(state, maximizing_player)
+        if state.result is not None or depth <= 0:
+            return self._evaluate_for_maximizer(state, maximizing_player, depth)
 
         is_maximizing = state.current_player == maximizing_player
         best_score = float("-inf") if is_maximizing else float("inf")
@@ -138,8 +139,8 @@ class Minimax(BaseModel):
         :param maximizing_player: The player whose score we are trying to maximize.
         :returns: The heuristic score of the node from the maximizing_player's perspective.
         """
-        if state.result is not None or depth == 0:
-            return self._evaluate_for_maximizer(state, maximizing_player)
+        if state.result is not None or depth <= 0:
+            return self._evaluate_for_maximizer(state, maximizing_player, depth)
 
         is_maximizing = state.current_player == maximizing_player
         best_score = float("-inf") if is_maximizing else float("inf")
@@ -163,10 +164,17 @@ class Minimax(BaseModel):
 
         return best_score
 
-    def _evaluate_for_maximizer(self, state: GameState, maximizing_player: Player) -> float:
+    def _evaluate_for_maximizer(
+        self, state: GameState, maximizing_player: Player, depth: int
+    ) -> float:
         """
-        Helper to convert the absolute PLAYER_1 score from the evaluator
-        into a relative score for the maximizing player.
+        Converts the absolute PLAYER_1 score from the evaluator into a relative
+        score for the maximizing player, applying depth weighting to terminal wins
+        and losses so faster wins are preferred and inevitable losses are delayed.
         """
         absolute_score = self.evaluator.evaluate(state)
-        return absolute_score if maximizing_player == Player.PLAYER_1 else -absolute_score
+        score = absolute_score if maximizing_player == Player.PLAYER_1 else -absolute_score
+        if state.result in (GameResult.PLAYER_1, GameResult.PLAYER_2):
+            depth_bonus = max(depth, 0)
+            return score + depth_bonus if score > 0 else score - depth_bonus
+        return score
