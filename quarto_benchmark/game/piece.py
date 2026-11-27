@@ -3,12 +3,18 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Piece:
-    """Represents a piece in Quarto"""
+    """Represents a piece in Quarto."""
 
     height: int
     color: int
     shape: int
     fill: int
+
+    def __post_init__(self) -> None:
+        for attr in ("height", "color", "shape", "fill"):
+            value = getattr(self, attr)
+            if isinstance(value, bool) or value not in (0, 1):
+                raise ValueError(f"Piece attribute '{attr}' must be 0 or 1, got {value!r}.")
 
     def to_bits(self) -> int:
         """Returns the Piece object as a 4 bits representation"""

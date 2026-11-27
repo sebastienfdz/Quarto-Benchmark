@@ -12,11 +12,19 @@ class Board:
         """
         Places a piece on the board.
 
-        :raises InvalidSquareError: If the square is unavailable.
+        :raises InvalidSquareError: If the coordinates are out of bounds or the square is occupied.
         """
+        if not (0 <= x < 4 and 0 <= y < 4):
+            raise InvalidSquareError(f"Square ({x}, {y}) is out of bounds.")
         if self.game_board[x, y] is not None:
             raise InvalidSquareError(f"Square ({x}, {y}) not available.")
         self.game_board[x, y] = piece
+
+    def clone(self) -> "Board":
+        """Creates a fast shallow copy of the board with an independent grid."""
+        new_board = Board.__new__(Board)
+        new_board.game_board = self.game_board.copy()
+        return new_board
 
     def is_full(self) -> bool:
         """Checks if the board is full"""

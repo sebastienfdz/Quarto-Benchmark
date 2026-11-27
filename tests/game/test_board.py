@@ -41,6 +41,32 @@ def test_place_piece_invalid_square_raises(empty_board: Board):
         empty_board.place_piece(0, 0, piece2)
 
 
+@pytest.mark.parametrize(
+    ("x", "y"),
+    [(-1, 0), (0, -1), (-1, -1), (4, 0), (0, 4), (4, 4)],
+)
+def test_place_piece_out_of_bounds_raises(empty_board: Board, x: int, y: int):
+    """Placing a piece outside the 4x4 grid must raise InvalidSquareError."""
+    piece = Piece(0, 0, 0, 0)
+    with pytest.raises(InvalidSquareError, match="out of bounds"):
+        empty_board.place_piece(x, y, piece)
+
+
+def test_board_clone_independence(empty_board: Board):
+    """Cloning a board produces an independent grid that preserves existing pieces."""
+    initial_piece = Piece(0, 0, 0, 0)
+    empty_board.place_piece(0, 0, initial_piece)
+
+    cloned = empty_board.clone()
+    assert cloned is not empty_board
+    assert cloned.game_board is not empty_board.game_board
+    assert cloned.game_board[0, 0] is initial_piece
+
+    cloned.place_piece(1, 1, Piece(1, 1, 1, 1))
+    assert empty_board.game_board[1, 1] is None
+    assert cloned.game_board[1, 1] is not None
+
+
 def test_is_full_false(empty_board: Board):
     """An empty board is not full."""
     assert not empty_board.is_full()

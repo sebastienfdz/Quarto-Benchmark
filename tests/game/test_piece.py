@@ -1,4 +1,23 @@
+import pytest
+
 from quarto_benchmark.game.piece import Piece, generate_all_pieces
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"height": -1, "color": 0, "shape": 0, "fill": 0},
+        {"height": 2, "color": 0, "shape": 0, "fill": 0},
+        {"height": 0, "color": -1, "shape": 0, "fill": 0},
+        {"height": 0, "color": 0, "shape": 3, "fill": 0},
+        {"height": 0, "color": 0, "shape": 0, "fill": 42},
+        {"height": True, "color": 0, "shape": 0, "fill": 0},
+    ],
+)
+def test_piece_invalid_attribute_raises(kwargs: dict[str, int]):
+    """Creating a piece with attributes outside {0, 1} must raise ValueError."""
+    with pytest.raises(ValueError, match="must be 0 or 1"):
+        Piece(**kwargs)
 
 
 def test_piece_to_bits_zeros():

@@ -3,7 +3,11 @@ import pytest
 from quarto_benchmark.game.piece import Piece
 from quarto_benchmark.game.state import GameState
 from quarto_benchmark.game.types import GameResult
-from quarto_benchmark.players.ai.minimax.evaluator import SimpleEvaluator, evaluate_line
+from quarto_benchmark.players.ai.minimax.evaluator import (
+    WIN_SCORE,
+    SimpleEvaluator,
+    evaluate_line,
+)
 
 
 # Fixture Evaluator
@@ -81,15 +85,15 @@ def test_simple_evaluator_empty_board(new_game: GameState, simple_evaluator: Sim
 
 
 def test_simple_evaluator_terminal_win_p1(new_game: GameState, simple_evaluator: SimpleEvaluator):
-    """PLAYER_1 win should return positive infinity."""
+    """PLAYER_1 win should return +WIN_SCORE."""
     new_game.result = GameResult.PLAYER_1
-    assert simple_evaluator.evaluate(new_game) == float("inf")
+    assert simple_evaluator.evaluate(new_game) == WIN_SCORE
 
 
 def test_simple_evaluator_terminal_win_p2(new_game: GameState, simple_evaluator: SimpleEvaluator):
-    """PLAYER_2 win should return negative infinity."""
+    """PLAYER_2 win should return -WIN_SCORE."""
     new_game.result = GameResult.PLAYER_2
-    assert simple_evaluator.evaluate(new_game) == float("-inf")
+    assert simple_evaluator.evaluate(new_game) == -WIN_SCORE
 
 
 def test_simple_evaluator_terminal_draw(new_game: GameState, simple_evaluator: SimpleEvaluator):

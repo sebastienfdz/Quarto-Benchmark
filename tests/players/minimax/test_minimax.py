@@ -1,7 +1,8 @@
 import pytest
 
 from quarto_benchmark.game.state import GameState
-from quarto_benchmark.players.ai.minimax.evaluator import SimpleEvaluator
+from quarto_benchmark.game.types import GameResult, Player
+from quarto_benchmark.players.ai.minimax.evaluator import WIN_SCORE, SimpleEvaluator
 from quarto_benchmark.players.ai.minimax.minimax import Minimax
 
 
@@ -91,8 +92,9 @@ def test_choose_position_winning(winning_game: GameState, minimax_player: Minima
     assert (x, y) == (0, 0)
 
 
+@pytest.mark.parametrize("depth", [2, 4])
 def test_alpha_beta_pruning_reduces_evaluations(
-    mid_game: GameState, monkeypatch: pytest.MonkeyPatch
+    winning_game: GameState, monkeypatch: pytest.MonkeyPatch, depth: int
 ):
     """Verify that Alpha-Beta pruning evaluates strictly fewer nodes than Naive Minimax."""
     # Mock evaluator to count node evaluations
@@ -108,17 +110,53 @@ def test_alpha_beta_pruning_reduces_evaluations(
     monkeypatch.setattr(evaluator, "evaluate", mock_count_evaluate)
 
     # Test with naive minimax
-    naive_minimax = Minimax(evaluator=evaluator, depth=4, use_alpha_beta=False)
-    naive_minimax.choose_piece(mid_game.clone())
+    naive_minimax = Minimax(evaluator=evaluator, depth=depth, use_alpha_beta=False)
+    naive_minimax.choose_piece(winning_game.clone())
     naive_count = eval_count
 
     eval_count = 0
 
     # Test with minimax with alpha-beta pruning
-    ab_minimax = Minimax(evaluator=evaluator, depth=4, use_alpha_beta=True)
-    ab_minimax.choose_piece(mid_game.clone())
+    ab_minimax = Minimax(evaluator=evaluator, depth=depth, use_alpha_beta=True)
+    ab_minimax.choose_piece(winning_game.clone())
     ab_count = eval_count
 
     assert ab_count < naive_count, (
         f"Alpha-Beta ({ab_count}) should evaluate fewer nodes than Naive ({naive_count})."
     )
+
+
+@pytest.mark.parametrize("invalid_depth", [0, -1])
+def test_minimax_invalid_depth_raises(invalid_depth: int):
+    """Initializing Minimax with depth < 1 must raise ValueError."""
+    with pytest.raises(ValueError, match="Search depth must be at least 1"):
+        Minimax(evaluator=SimpleEvaluator(), depth=invalid_depth)
+
+
+def test_alpha_beta_matches_naive_move(mid_game: GameState):
+    """Alpha-Beta pruning must return the exact same move as Naive Minimax."""
+    evaluator = SimpleEvaluator()
+    naive = Minimax(evaluator=evaluator, depth=3, use_alpha_beta=False)
+    ab = Minimax(evaluator=evaluator, depth=3, use_alpha_beta=True)
+
+    assert ab.choose_piece(mid_game.clone()) == naive.choose_piece(mid_game.clone())
+
+
+def test_depth_weighted_terminal_scores():
+    """Faster wins score higher than slower wins, and slower losses higher than fast losses."""
+    minimax = Minimax(evaluator=SimpleEvaluator(), depth=4)
+    win_p1 = GameState()
+    win_p1.result = GameResult.PLAYER_1
+
+    assert minimax._evaluate_for_maximizer(win_p1, Player.PLAYER_1, depth=3) == WIN_SCORE + 3
+    assert minimax._evaluate_for_maximizer(win_p1, Player.PLAYER_1, depth=1) == WIN_SCORE + 1
+    assert minimax._evaluate_for_maximizer(win_p1, Player.PLAYER_2, depth=3) == -(WIN_SCORE + 3)
+    assert minimax._evaluate_for_maximizer(win_p1, Player.PLAYER_2, depth=1) == -(WIN_SCORE + 1)
+
+
+def test_minimax_no_legal_moves_raises(new_game: GameState):
+    """Searching from a finished game with no legal moves must raise ValueError."""
+    new_game.result = GameResult.DRAW
+    minimax = Minimax(evaluator=SimpleEvaluator(), depth=1)
+    with pytest.raises(ValueError, match="No legal moves available"):
+        minimax.choose_piece(new_game)

@@ -268,3 +268,64 @@ def test_clone_mutation_independence(new_game: GameState):
     # Original board should be untouched
     assert len(new_game.board.get_available_positions()) == 16
     assert len(cloned_game.board.get_available_positions()) == 15
+
+
+def test_get_legal_moves_by_phase(new_game: GameState):
+    """get_legal_moves returns pieces in SELECTION phase and coordinates in PLACEMENT phase."""
+    selection_moves = new_game.get_legal_moves()
+    assert len(selection_moves) == 16
+    assert all(isinstance(move, Piece) for move in selection_moves)
+
+    first_piece = selection_moves[0]
+    assert isinstance(first_piece, Piece)
+    new_game.select_piece(first_piece)
+
+    placement_moves = new_game.get_legal_moves()
+    assert len(placement_moves) == 16
+    assert all(isinstance(move, tuple) for move in placement_moves)
+
+
+def test_get_legal_moves_empty_after_victory(new_game: GameState):
+    """A finished game won early (with remaining pieces) must expose no legal moves."""
+    pieces = new_game.get_remaining_pieces()
+    for i in range(4):
+        new_game.select_piece(pieces[i])
+        new_game.place_piece(0, i)
+
+    assert new_game.result is not None
+    assert len(new_game.get_remaining_pieces()) == 12
+    assert new_game.get_legal_moves() == []
+
+
+def test_get_legal_moves_empty_after_draw(game_draw: GameState):
+    """A drawn game must expose no legal moves."""
+    assert game_draw.get_legal_moves() == []
+
+
+def test_apply_move_valid_transitions(new_game: GameState):
+    """apply_move dispatches to select_piece and place_piece according to the active phase."""
+    piece = new_game.get_remaining_pieces()[0]
+    new_game.apply_move(piece)
+    assert new_game.phase == GamePhase.PLACEMENT
+    assert new_game.next_piece == piece
+
+    new_game.apply_move((0, 0))
+    assert new_game.phase == GamePhase.SELECTION  # type: ignore[comparison-overlap]
+    assert new_game.board.game_board[0, 0] == piece
+
+
+def test_apply_move_wrong_type_raises(new_game: GameState):
+    """apply_move raises TypeError when the move type does not match the current phase."""
+    with pytest.raises(TypeError, match="Expected Piece for selection"):
+        new_game.apply_move((0, 0))
+
+    piece = new_game.get_remaining_pieces()[0]
+    new_game.select_piece(piece)
+    with pytest.raises(TypeError, match="Expected tuple for placement"):
+        new_game.apply_move(piece)
+
+
+def test_apply_move_game_ended_raises(game_draw: GameState):
+    """apply_move raises GameEndedError when called on a finished game."""
+    with pytest.raises(GameEndedError, match="The game is already over."):
+        game_draw.apply_move((0, 0))
