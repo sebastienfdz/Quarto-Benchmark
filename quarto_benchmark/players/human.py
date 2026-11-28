@@ -25,7 +25,7 @@ class HumanPlayer(BaseModel):
 
     def choose_position(self, state: GameState, piece: Piece) -> tuple[int, int]:
         """Ask the user for a valid position (row, col)."""
-        prompt = f"Place piece {piece.to_bits():02d} (format: row,col): "
+        prompt = f"Place piece {piece.to_bits():02d} ({piece.to_bits():04b}) (format: row,col): "
 
         while True:
             raw = self.input_func(prompt)
@@ -41,8 +41,13 @@ class HumanPlayer(BaseModel):
         """Ask the user to select a piece for the opponent."""
         remaining = state.remaining_pieces
 
-        self.output_func("Available pieces:")
-        self.output_func(" ".join(f"{piece_id:02d}" for piece_id in remaining.keys()))
+        self.output_func(
+            "Available pieces (bits = Height, Color, Shape, Fill: "
+            "0/1 = Short/Tall, Light/Dark, Circle/Square, Hollow/Solid):"
+        )
+        self.output_func(
+            " ".join(f"{piece_id:02d}({piece_id:04b})" for piece_id in remaining.keys())
+        )
 
         while True:
             raw = self.input_func("Choose the piece number (0–15): ")

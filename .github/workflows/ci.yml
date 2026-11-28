@@ -8,17 +8,21 @@ on:
 
 jobs:
   lint-test:
-    name: Lint, Type Check, and Test
+    name: Lint, Type Check, and Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -27,7 +31,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --frozen --all-extras
 
       - name: Run Ruff Linter
         run: uv run ruff check .
@@ -39,7 +43,15 @@ jobs:
         run: uv run mypy .
 
       - name: Run Tests with Pytest and Coverage
-        run: uv run pytest --cov=quarto_benchmark --cov-report=xml
+        run: uv run pytest --cov=quarto_benchmark --cov-report=xml --cov-fail-under=90
+
+      - name: Upload coverage reports to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: false
 
   docker-build:
     name: Validate Docker Build

@@ -199,8 +199,8 @@ def test_get_remaining_pieces_full(game_draw: GameState):
 def test_new_game_to_str(new_game: GameState):
     """The string representation of a new game should match the expected layout."""
     printed_game = (
-        f"Current player: {Player.PLAYER_1}\n"
-        f"Phase: {GamePhase.SELECTION}\n"
+        "Current player: Player 1\n"
+        "Phase: SELECTION\n"
         ".. | .. | .. | ..\n"
         ".. | .. | .. | ..\n"
         ".. | .. | .. | ..\n"

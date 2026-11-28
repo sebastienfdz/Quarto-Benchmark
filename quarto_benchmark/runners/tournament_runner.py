@@ -2,6 +2,7 @@ import itertools
 import logging
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import AbstractContextManager, nullcontext
 from typing import TypedDict
 
 from tqdm import tqdm
@@ -59,8 +60,7 @@ class TournamentRunner:
     def _record_game_outcome(
         self,
         results: MatchupResult,
-        p0: BaseModel,
-        player_a: BaseModel,
+        a_is_starter: bool,
         is_p0_win: bool,
         is_p1_win: bool,
         is_draw: bool,
@@ -70,16 +70,35 @@ class TournamentRunner:
             results["draws"] += 1
         elif is_p0_win:
             results["starter_wins"] += 1
-            if p0.name == player_a.name:
+            if a_is_starter:
                 results["a_wins"] += 1
             else:
                 results["b_wins"] += 1
         elif is_p1_win:
             results["follower_wins"] += 1
-            if p0.name == player_a.name:
+            if a_is_starter:
                 results["b_wins"] += 1
             else:
                 results["a_wins"] += 1
+
+    def _run_parallel_tasks(
+        self,
+        executor: ProcessPoolExecutor,
+        tasks: list[tuple[BaseModel, BaseModel, bool]],
+        results: MatchupResult,
+        pbar: tqdm,
+    ) -> None:
+        """Submits matchup tasks to a process pool and aggregates completed results."""
+        future_to_starter = {
+            executor.submit(_run_single_game_worker, (p0, p1)): a_is_starter
+            for p0, p1, a_is_starter in tasks
+        }
+
+        for future in as_completed(future_to_starter):
+            a_is_starter = future_to_starter[future]
+            is_p0_win, is_p1_win, is_draw = future.result()
+            self._record_game_outcome(results, a_is_starter, is_p0_win, is_p1_win, is_draw)
+            pbar.update(1)
 
     def run_matchup(
         self,
@@ -88,22 +107,26 @@ class TournamentRunner:
         games_per_side: int,
         max_workers: int | None = None,
         parallel: bool = True,
+        executor: ProcessPoolExecutor | None = None,
     ) -> MatchupResult:
         """
         Runs a series of games between two players.
-        Each player gets to start (Player 0) exactly games_per_side times.
+        Each player gets to start (Player 1) exactly games_per_side times.
 
         :param player_a: First player model.
         :param player_b: Second player model.
         :param games_per_side: Number of games each player starts.
         :param max_workers: Maximum process pool workers (None for default CPU count).
         :param parallel: Whether to use multiprocessing.
+        :param executor: Optional shared ProcessPoolExecutor to reuse across matchups.
         :return: Dict of results.
         """
         if games_per_side <= 0:
             raise ValueError("games_per_side must be at least 1.")
 
-        tasks = [(player_a, player_b)] * games_per_side + [(player_b, player_a)] * games_per_side
+        tasks: list[tuple[BaseModel, BaseModel, bool]] = [
+            (player_a, player_b, True)
+        ] * games_per_side + [(player_b, player_a, False)] * games_per_side
 
         results: MatchupResult = {
             "player_a_name": player_a.name,
@@ -123,30 +146,24 @@ class TournamentRunner:
         original_level = engine_logger.level
         engine_logger.setLevel(logging.WARNING)
 
-        with tqdm(total=len(tasks), desc=desc, unit="game") as pbar:
-            if parallel:
-                with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                    future_to_task_idx = {
-                        executor.submit(_run_single_game_worker, task): i
-                        for i, task in enumerate(tasks)
-                    }
-
-                    for future in as_completed(future_to_task_idx):
-                        i = future_to_task_idx[future]
-                        p0, _ = tasks[i]
-                        is_p0_win, is_p1_win, is_draw = future.result()
+        try:
+            with tqdm(total=len(tasks), desc=desc, unit="game") as pbar:
+                if parallel:
+                    if executor is not None:
+                        self._run_parallel_tasks(executor, tasks, results, pbar)
+                    else:
+                        with ProcessPoolExecutor(max_workers=max_workers) as local_executor:
+                            self._run_parallel_tasks(local_executor, tasks, results, pbar)
+                else:
+                    for p0, p1, a_is_starter in tasks:
+                        is_p0_win, is_p1_win, is_draw = _run_single_game_worker((p0, p1))
                         self._record_game_outcome(
-                            results, p0, player_a, is_p0_win, is_p1_win, is_draw
+                            results, a_is_starter, is_p0_win, is_p1_win, is_draw
                         )
                         pbar.update(1)
-            else:
-                for task in tasks:
-                    p0, _ = task
-                    is_p0_win, is_p1_win, is_draw = _run_single_game_worker(task)
-                    self._record_game_outcome(results, p0, player_a, is_p0_win, is_p1_win, is_draw)
-                    pbar.update(1)
+        finally:
+            engine_logger.setLevel(original_level)
 
-        engine_logger.setLevel(original_level)
         return results
 
     def _update_leaderboard_stats(
@@ -193,6 +210,10 @@ class TournamentRunner:
         if len(players) < 2:
             raise ValueError("Championship requires at least 2 players.")
 
+        player_names = [p.name for p in players]
+        if len(player_names) != len(set(player_names)):
+            raise ValueError("All players in a championship must have unique names.")
+
         leaderboard: dict[str, LeaderboardEntry] = {
             p.name: {
                 "player": p,
@@ -207,12 +228,21 @@ class TournamentRunner:
 
         all_matchups: list[MatchupResult] = []
 
-        for p_a, p_b in itertools.combinations(players, 2):
-            results = self.run_matchup(
-                p_a, p_b, games_per_matchup, max_workers=max_workers, parallel=parallel
-            )
-            all_matchups.append(results)
-            self._update_leaderboard_stats(leaderboard, p_a, p_b, results)
+        pool_ctx: AbstractContextManager[ProcessPoolExecutor | None] = (
+            ProcessPoolExecutor(max_workers=max_workers) if parallel else nullcontext()
+        )
+        with pool_ctx as executor:
+            for p_a, p_b in itertools.combinations(players, 2):
+                results = self.run_matchup(
+                    p_a,
+                    p_b,
+                    games_per_matchup,
+                    max_workers=max_workers,
+                    parallel=parallel,
+                    executor=executor,
+                )
+                all_matchups.append(results)
+                self._update_leaderboard_stats(leaderboard, p_a, p_b, results)
 
         # Batch Elo calculation across all completed matchups
         ratings = EloSystem.calculate_ratings(all_matchups)

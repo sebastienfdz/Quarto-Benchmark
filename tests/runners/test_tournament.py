@@ -42,6 +42,15 @@ def test_run_matchup_success(
     assert total_bias_outcomes == results["total_games"]
 
 
+def test_run_matchup_self_play(runner: TournamentRunner, player_a: RandomAI) -> None:
+    """A self-play matchup (same player name on both sides) must track wins accurately."""
+    results = runner.run_matchup(player_a, player_a, games_per_side=2, parallel=False)
+
+    assert results["total_games"] == 4
+    assert results["a_wins"] + results["b_wins"] + results["draws"] == 4
+    assert results["starter_wins"] + results["follower_wins"] + results["draws"] == 4
+
+
 def test_run_matchup_invalid_inputs(
     runner: TournamentRunner, player_a: RandomAI, player_b: RandomAI
 ) -> None:
@@ -78,3 +87,10 @@ def test_run_championship_invalid_inputs(runner: TournamentRunner, player_a: Ran
     """Verify that championship with less than 2 players raises a ValueError."""
     with pytest.raises(ValueError, match="Championship requires at least 2 players"):
         runner.run_championship([player_a], 1)
+
+
+def test_run_championship_duplicate_names_raises(runner: TournamentRunner) -> None:
+    """Verify that duplicate player names in a championship raise a ValueError."""
+    players = [RandomAI("SameAI"), RandomAI("SameAI")]
+    with pytest.raises(ValueError, match="unique names"):
+        runner.run_championship(players, 1)

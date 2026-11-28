@@ -24,15 +24,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--parallel",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
         help="Run games in parallel.",
-    )
-    parser.add_argument(
-        "--no-parallel",
-        action="store_false",
-        dest="parallel",
-        help="Disable parallel execution.",
     )
     parser.add_argument(
         "--output",

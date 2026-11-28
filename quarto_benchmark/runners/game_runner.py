@@ -19,7 +19,7 @@ class GameRunner:
         if self.game.result is None:
             current_idx = self.game.current_player
             current_player = self.players[current_idx].name
-            self.logger.info(f"{current_player} (Player {current_idx}) to move.\n")
+            self.logger.info(f"{current_player} (Player {current_idx + 1}) to move.\n")
 
     def _play_turn(self) -> None:
         """Executes a single turn of the game."""
@@ -38,7 +38,7 @@ class GameRunner:
         """Main game loop."""
         self.logger.info("=== Quarto Game ===")
         self.logger.info(
-            f"Player 0: {self.players[0].name}\n" + f"Player 1: {self.players[1].name}\n"
+            f"Player 1: {self.players[0].name}\n" + f"Player 2: {self.players[1].name}\n"
         )
 
         next_piece = self.players[0].choose_piece(self.game)
@@ -53,4 +53,4 @@ class GameRunner:
             self.logger.info("Draw.")
         else:
             winner = self.game.result
-            self.logger.info(f"🏆 Player {winner} ({self.players[winner].name}) wins!")
+            self.logger.info(f"🏆 Player {winner + 1} ({self.players[winner].name}) wins!")
