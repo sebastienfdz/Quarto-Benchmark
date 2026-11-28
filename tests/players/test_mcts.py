@@ -10,6 +10,12 @@ from quarto_benchmark.players.ai.mcts import MCTS, MCTSNode
 
 
 # Fixture GameState
+@pytest.fixture(autouse=True)
+def seed_rng() -> None:
+    """Seed the global RNG before each test for deterministic MCTS runs."""
+    random.seed(42)
+
+
 @pytest.fixture
 def new_game() -> GameState:
     """Create a new game of Quarto. Synchronized with `root_node` (Phase = SELECTION)."""
@@ -188,13 +194,13 @@ def test_choose_piece_not_winning(winning_game: GameState, new_mcts: MCTS):
     In a situation where the opponent could win, the AI
     must not choose the piece that completes the Quarto.
     """
-    loosing_piece = winning_game.get_remaining_pieces()[0]
+    losing_piece = winning_game.get_remaining_pieces()[0]
     chosen_piece = new_mcts.choose_piece(winning_game)
-    assert chosen_piece != loosing_piece
+    assert chosen_piece != losing_piece
 
 
 def test_choose_position_valid(new_game: GameState, new_mcts: MCTS):
-    """The AI should select an valid empty square on the board."""
+    """The AI should select a valid empty square on the board."""
     piece = new_game.get_remaining_pieces()[0]
     new_game.select_piece(piece)
 
@@ -221,11 +227,11 @@ def test_select(game_with_selected_piece: GameState, new_mcts_node: MCTSNode, ne
     assert not selected_node.is_fully_expanded() or not selected_node.children
 
 
-def test_select_clones_game_states(
+def test_select_applies_moves_along_path(
     game_with_selected_piece: GameState, new_mcts: MCTS, expanded_mcts_node: MCTSNode
 ):
     """
-    Selection must deep copy the GameState, apply moves along the path,
+    Selection should traverse the tree using UCB1, apply moves along the path,
     and return a non-fully expanded node.
     """
     leaf_move = game_with_selected_piece.get_remaining_pieces()[0]
@@ -267,7 +273,6 @@ def test_expand_removes_unexplored(
     initial_unexplored_count = len(new_mcts_node.unexplored_moves)
     initial_children_count = len(new_mcts_node.children)
 
-    random.seed(42)
     child_node, updated_game = new_mcts._expand(new_mcts_node, game_with_selected_piece)
 
     assert len(new_mcts_node.children) == initial_children_count + 1
@@ -280,7 +285,6 @@ def test_simulate(new_game: GameState, new_mcts: MCTS):
     Simulation should play random moves until the game reaches a terminal state,
     returning a valid GameResult without modifying the input node.
     """
-    random.seed(42)
     result = new_mcts._simulate(new_game)
 
     assert isinstance(result, GameResult)
@@ -328,10 +332,10 @@ def test_backpropagate(new_mcts: MCTS, new_game: GameState):
     assert root.visits == 5
 
 
-def test_backpropagate_credit_assignement(new_mcts: MCTS, new_game: GameState):
+def test_backpropagate_credit_assignment(new_mcts: MCTS, new_game: GameState):
     """
     A win for Player X should only increase the win count of
-    nodes where the player_who_moved was Player X..
+    nodes where the player_who_moved was Player X.
     """
     pieces = new_game.get_remaining_pieces()
 

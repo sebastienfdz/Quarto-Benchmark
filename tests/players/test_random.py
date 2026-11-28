@@ -85,9 +85,13 @@ def test_is_winning_move_unavailable(winning_game: GameState):
 
 def test_is_winning_move_not_modify_board(new_game: GameState):
     """Ensure the board state remains unchanged after simulating a move."""
-    board = new_game.board
+    board_before = str(new_game.board)
+    available_before = new_game.board.get_available_positions()
     player = RandomAI()
     piece = Piece(0, 0, 0, 0)
+
     is_winning = player._is_winning_move(new_game.board, 0, 0, piece)
+
     assert not is_winning
-    assert board == new_game.board
+    assert str(new_game.board) == board_before
+    assert new_game.board.get_available_positions() == available_before
