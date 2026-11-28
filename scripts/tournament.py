@@ -65,13 +65,20 @@ def _run_matchup() -> None:
         logger.info(f"  {i}. {name}")
 
     try:
-        a = int(input("Select agent 1 (number): ").strip()) - 1
-        b = int(input("Select agent 2 (number): ").strip()) - 1
-        player_a = AGENTS[agent_list[a]]
-        player_b = AGENTS[agent_list[b]]
-    except (ValueError, IndexError):
+        choice_a = int(input("Select agent 1 (number): ").strip())
+        choice_b = int(input("Select agent 2 (number): ").strip())
+    except ValueError:
         logger.error("Invalid selection. Exiting.")
         sys.exit(1)
+
+    if not (1 <= choice_a <= len(agent_list) and 1 <= choice_b <= len(agent_list)):
+        logger.error(
+            f"Invalid selection. Please choose a number between 1 and {len(agent_list)}. Exiting."
+        )
+        sys.exit(1)
+
+    player_a = AGENTS[agent_list[choice_a - 1]]
+    player_b = AGENTS[agent_list[choice_b - 1]]
 
     games, use_parallel = _prompt_settings()
     runner = TournamentRunner()
@@ -112,14 +119,18 @@ def main() -> None:
     display_menu()
 
     try:
-        choice = int(input("Enter choice: ").strip())
-        if choice not in HANDLERS:
-            raise ValueError
-    except ValueError:
-        logger.error("Invalid choice. Exiting.")
-        sys.exit(1)
+        try:
+            choice = int(input("Enter choice: ").strip())
+            if choice not in HANDLERS:
+                raise ValueError
+        except ValueError:
+            logger.error("Invalid choice. Exiting.")
+            sys.exit(1)
 
-    HANDLERS[choice]()
+        HANDLERS[choice]()
+    except (KeyboardInterrupt, EOFError):
+        logger.info("\nExiting.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

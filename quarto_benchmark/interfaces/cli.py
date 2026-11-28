@@ -20,7 +20,7 @@ GAME_MODES: dict[int, tuple[str, tuple[BaseModel, BaseModel]]] = {
         "Human vs Minimax",
         (
             HumanPlayer("Human"),
-            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=False, name="Minimax"),
+            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=True, name="Minimax"),
         ),
     ),
     5: ("RandomAI vs MCTS", (RandomAI("RandomAI"), MCTS(simulations=MCTS_SIMULATION, name="MCTS"))),
@@ -28,7 +28,7 @@ GAME_MODES: dict[int, tuple[str, tuple[BaseModel, BaseModel]]] = {
         "RandomAI vs Minimax",
         (
             RandomAI("RandomAI"),
-            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=False, name="Minimax"),
+            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=True, name="Minimax"),
         ),
     ),
     7: (
@@ -42,14 +42,14 @@ GAME_MODES: dict[int, tuple[str, tuple[BaseModel, BaseModel]]] = {
         "MCTS vs Minimax",
         (
             MCTS(simulations=MCTS_SIMULATION, name="MCTS"),
-            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=False, name="Minimax"),
+            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=True, name="Minimax"),
         ),
     ),
     9: (
         "Minimax-d2 vs Minimax-d3",
         (
-            Minimax(evaluator=SimpleEvaluator(), depth=2, use_alpha_beta=False, name="Minimax-d2"),
-            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=False, name="Minimax-d3"),
+            Minimax(evaluator=SimpleEvaluator(), depth=2, use_alpha_beta=True, name="Minimax-d2"),
+            Minimax(evaluator=SimpleEvaluator(), depth=3, use_alpha_beta=True, name="Minimax-d3"),
         ),
     ),
 }
@@ -69,15 +69,19 @@ def main() -> None:
     display_menu()
 
     try:
-        choice = int(input("Enter your choice: ").strip())
-        label, players = GAME_MODES[choice]
-    except (ValueError, KeyError):
-        logger.error("Invalid choice. Exiting.")
-        sys.exit(1)
+        try:
+            choice = int(input("Enter your choice: ").strip())
+            label, players = GAME_MODES[choice]
+        except (ValueError, KeyError):
+            logger.error("Invalid choice. Exiting.")
+            sys.exit(1)
 
-    logger.info(f"Starting game: {label}\n")
-    runner = GameRunner(*players)
-    runner.run()
+        logger.info(f"Starting game: {label}\n")
+        runner = GameRunner(*players)
+        runner.run()
+    except (KeyboardInterrupt, EOFError):
+        logger.info("\nExiting.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -120,7 +120,7 @@ class GameState:
 
     def __str__(self) -> str:
         """Simple display of the game state."""
-        text = f"Current player: {self.current_player}\n"
-        text += f"Phase: {self.phase}\n"
+        text = f"Current player: Player {self.current_player + 1}\n"
+        text += f"Phase: {self.phase.name}\n"
         text += str(self.board)
         return text

@@ -37,9 +37,9 @@ class ConsoleExporter:
         logger.info(f"Draws: {results['draws']} ({draw_pct:.1f}%)")
         logger.info("-" * 50)
         logger.info("Starting Bias Analysis:")
-        logger.info(f"Player 0 (Starter) Wins:  {results['starter_wins']} ({starter_pct:.1f}%)")
-        logger.info(f"Player 1 (Follower) Wins: {results['follower_wins']} ({follower_pct:.1f}%)")
-        logger.info(f"Draws:                     {results['draws']} ({draw_pct:.1f}%)")
+        logger.info(f"Player 1 (Starter) Wins:  {results['starter_wins']} ({starter_pct:.1f}%)")
+        logger.info(f"Player 2 (Follower) Wins: {results['follower_wins']} ({follower_pct:.1f}%)")
+        logger.info(f"Draws:                    {results['draws']} ({draw_pct:.1f}%)")
         logger.info("=" * 50 + "\n")
 
     @staticmethod
@@ -59,7 +59,7 @@ class ConsoleExporter:
             win_rate = (entry["wins"] / total) * 100 if total > 0 else 0.0
 
             logger.info(
-                f"{rank:<5} | {entry['player'].name:<20} | {int(entry['elo']):<6} | "
+                f"{rank:<5} | {entry['player'].name:<20} | {round(entry['elo']):<6} | "
                 f"{entry['wins']:<6} | {entry['draws']:<6} | "
                 f"{entry['losses']:<6} | {win_rate:.1f}%"
             )
@@ -115,7 +115,7 @@ class MarkdownExporter:
             draw_rate = (draws / total) * 100 if total > 0 else 0.0
             loss_rate = (losses / total) * 100 if total > 0 else 0.0
 
-            elo = int(entry["elo"])
+            elo = round(entry["elo"])
             elo_diff = elo - 1500
             elo_str = (
                 f"{elo} ({'+' if elo_diff > 0 else ''}{elo_diff})"
